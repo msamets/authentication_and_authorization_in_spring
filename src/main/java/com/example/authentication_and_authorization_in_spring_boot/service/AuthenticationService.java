@@ -23,8 +23,8 @@ public class AuthenticationService {
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
 
-    public AuthenticationResponse register(RegisterRequest request) {
-        var user = User.builder()
+    public AuthenticationResponse register(RegisterRequest request, HttpServletResponse response) {
+        User user = User.builder()
                 .firstName(request.getFirstName())
                 .lastName(request.getLastName())
                 .email(request.getEmail())
@@ -32,8 +32,12 @@ public class AuthenticationService {
                 .role(request.getRole())
                 .build();
 
-        var accessToken = jwtService.generateToken(user);
-        var refreshToken = jwtService.generateRefreshToken(user, false);
+        userDao.save(user);
+
+        String accessToken = jwtService.generateToken(user);
+        String refreshToken = jwtService.generateRefreshToken(user, false);
+
+        addRefreshTokenToCookie(response, refreshToken);
 
         return AuthenticationResponse.builder()
                 .accessToken(accessToken)
@@ -49,11 +53,11 @@ public class AuthenticationService {
                 )
         );
 
-        var user = userDao.findByEmail(request.getEmail())
+        User user = userDao.findByEmail(request.getEmail())
                 .orElseThrow();
 
-        var accessToken = jwtService.generateToken(user);
-        var refreshToken = jwtService.generateRefreshToken(user, request.isRememberMe());
+        String accessToken = jwtService.generateToken(user);
+        String refreshToken = jwtService.generateRefreshToken(user, request.isRememberMe());
 
         addRefreshTokenToCookie(response, refreshToken);
 
@@ -74,15 +78,14 @@ public class AuthenticationService {
     }
 
     public AuthenticationResponse refresh(String refreshToken, HttpServletResponse response) {
-        final String userEmail;
+        String userEmail = jwtService.extractUsername(refreshToken);
 
-        userEmail = jwtService.extractUsername(refreshToken);
         if(userEmail != null ) {
-            var user = this.userDao.findByEmail(userEmail)
+            User user = this.userDao.findByEmail(userEmail)
                     .orElseThrow();
 
             if (jwtService.isTokenValid(refreshToken, user)) {
-                var accessToken = jwtService.generateToken(user);
+                String accessToken = jwtService.generateToken(user);
 
                 addRefreshTokenToCookie(response, refreshToken);
 
